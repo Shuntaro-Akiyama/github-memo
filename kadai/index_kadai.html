@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>myMemoPad</title>
+<script src="js/jquery-2.1.3.min.js"></script>
+<link rel="stylesheet" href="css/sample.css">
+</head>
+<body>
+<header>
+<h1>MemoPad</h1>
+</header>
+<main>
+    <input type="text" id="key" placeholder="タイトル">
+    <textarea id="memo" placeholder="メモ内容"></textarea>
+    <select id="category">
+        <option value="">カテゴリを選択</option>
+        <option value="仕事">仕事</option>
+        <option value="個人">個人</option>
+        <option value="その他">その他</option>
+    </select>
+    <ul>
+        <li id="save">Save</li>
+        <li id="clear">Clear</li>
+        <li id="undo">Undo</li>
+        <li id="redo">Redo</li>
+    </ul>
+    <input type="text" id="search" placeholder="検索キーワード">
+    <button id="searchBtn">検索</button>
+</main>
+<table id="list">
+    <tr>
+        <th>タイトル</th>
+        <th>内容</th>
+        <th>カテゴリ</th>
+        <th>操作</th>
+    </tr>
+    <!-- ここに追加データが挿入される -->
+</table>
+<script>
+let undoStack = [];
+let redoStack = [];
+
+function saveState() {
+    undoStack.push(JSON.stringify(getAllMemos()));
+    redoStack = []; // 新しい操作があったらRedoスタックをクリア
+}
+
+function getAllMemos() {
+    let memos = {};
+    for(let i = 0; i < localStorage.length; i++){
+        const key = localStorage.key(i);
+        memos[key] = JSON.parse(localStorage.getItem(key));
+    }
+    return memos;
+}
+
+function restoreState(state) {
+    localStorage.clear();
+    const memos = JSON.parse(state);
+    for (let key in memos) {
+        localStorage.setItem(key, JSON.stringify(memos[key]));
+    }
+    displayAllMemos();
+}
+
+// メモを保存する関数
+function saveMemo(key, value, category) {
+    saveState(); // 現在の状態を保存
+    const memo = { value: value, category: category };
+    localStorage.setItem(key, JSON.stringify(memo));
+    displayMemo(key, value, category);
+}
+
+// メモを表示する関数
+function displayMemo(key, value, category) {
+    const formattedValue = value.replace(/\n/g, '<br>'); // 改行を<br>に変換
+    const html = '<tr><td>' + key + '</td><td>' + formattedValue + '</td><td>' + category + '</td>' +
+                 '<td><button class="edit">編集</button> <button class="delete">削除</button></td></tr>';
+    $("#list").append(html);
+}
+
+// メモを全て表示する関数
+function displayAllMemos() {
+    $("#list tr:gt(0)").remove(); // ヘッダー以外の行を削除
+    for(let i = 0; i < localStorage.length; i++){
+        const key = localStorage.key(i);
+        const memo = JSON.parse(localStorage.getItem(key));
+        displayMemo(key, memo.value, memo.category);
+    }
+}
+
+// 1.Save クリックイベント
+$("#save").on("click", function(){
+    const key = $("#key").val();
+    const value = $("#memo").val();
+    const category = $("#category").val();
+    saveMemo(key, value, category);
+    $("#key").val("");
+    $("#memo").val("");
+    $("#category").val("");
+});
+
+// 2.Clear クリックイベント
+$("#clear").on("click", function(){
+    saveState(); // 現在の状態を保存
+    localStorage.clear();
+    displayAllMemos();
+});
+
+// 3.削除ボタンクリックイベント
+$(document).on("click", ".delete", function(){
+    saveState(); // 現在の状態を保存
+    const key = $(this).closest("tr").find("td:first").text();
+    localStorage.removeItem(key);
+    $(this).closest("tr").remove();
+});
+
+// 4.編集ボタンクリックイベント
+$(document).on("click", ".edit", function(){
+    const $row = $(this).closest("tr");
+    const key = $row.find("td:eq(0)").text();
+    const value = $row.find("td:eq(1)").html().replace(/<br>/g, '\n'); // <br>を改行に戻す
+    const category = $row.find("td:eq(2)").text();
+
+    $("#key").val(key);
+    $("#memo").val(value);
+    $("#category").val(category);
+
+    // 古いデータを削除
+    saveState(); // 現在の状態を保存
+    localStorage.removeItem(key);
+    $row.remove();
+});
+
+// 5.検索ボタンクリックイベント
+$("#searchBtn").on("click", function(){
+    const keyword = $("#search").val().toLowerCase();
+    $("#list tr:gt(0)").each(function(){
+        const text = $(this).text().toLowerCase();
+        $(this).toggle(text.indexOf(keyword) > -1);
+    });
+});
+
+// 6.Undo クリックイベント
+$("#undo").on("click", function(){
+    if (undoStack.length > 0) {
+        const previousState = undoStack.pop();
+        redoStack.push(JSON.stringify(getAllMemos())); // 現在の状態をRedoスタックに保存
+        restoreState(previousState);
+    } else {
+        alert("これ以上戻れません。");
+    }
+});
+
+// 7.Redo クリックイベント
+$("#redo").on("click", function(){
+    if (redoStack.length > 0) {
+        const nextState = redoStack.pop();
+        undoStack.push(JSON.stringify(getAllMemos())); // 現在の状態をUndoスタックに保存
+        restoreState(nextState);
+    } else {
+        alert("これ以上進めません。");
+    }
+});
+
+// ページ読み込み時：保存データ取得表示
+saveState(); // 初期状態を保存
+displayAllMemos();
+
+</script>
+<footer><small>G's</small></footer>
+</body>
+</html>
