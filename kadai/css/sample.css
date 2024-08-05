@@ -84,3 +84,36 @@ td{
     background-color:rgb(241, 239, 239);
     border-bottom: 1px solid #8dc3f5;
 }
+
+/* テーブルのスタイルを追加 */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: left;
+}
+th:nth-child(1), td:nth-child(1) {
+    width: 10%; /* 作成日の幅を20%に設定 */
+}
+th:nth-child(2), td:nth-child(2) {
+    width: 10%; /* カテゴリの幅を15%に設定 */
+}
+th:nth-child(3), td:nth-child(3) {
+    width: 10%; /* タイトルの幅を25%に設定 */
+}
+th:nth-child(4), td:nth-child(4) {
+    width: 20%; /* 内容の幅を30%に設定 */
+}
+th:nth-child(5), td:nth-child(5) {
+    width: 40%; /* 操作の幅を10%に設定 */
+}
+th:nth-child(6), td:nth-child(6) {
+    width: 10%; /* タイトルの幅を25%に設定 */
+}
+
+.deadline-today {
+    background-color: #f30808; /* 薄い赤色 */
+}

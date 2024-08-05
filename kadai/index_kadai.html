@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
+
 <head>
 <meta charset="UTF-8">
 <title>myMemoPad</title>
 <script src="js/jquery-2.1.3.min.js"></script>
 <link rel="stylesheet" href="css/sample.css">
 </head>
+
 <body>
 <header>
 <h1>MemoPad</h1>
@@ -19,6 +21,7 @@
         <option value="個人">個人</option>
         <option value="その他">その他</option>
     </select>
+    <input type="date" id="deadline" placeholder="締め切り">
     <ul>
         <li id="save">Save</li>
         <li id="clear">Clear</li>
@@ -30,9 +33,11 @@
 </main>
 <table id="list">
     <tr>
+        <th>作成日</th>
+        <th>カテゴリ</th>
+        <th>締め切り</th>
         <th>タイトル</th>
         <th>内容</th>
-        <th>カテゴリ</th>
         <th>操作</th>
     </tr>
     <!-- ここに追加データが挿入される -->
@@ -41,41 +46,55 @@
 let undoStack = [];
 let redoStack = [];
 
+// 日付比較のヘルパー関数
+function isSameDay(date1, date2) {
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate();
+}
+
 function saveState() {
-    undoStack.push(JSON.stringify(getAllMemos()));
+    const currentState = {
+        title: $("#key").val(),
+        memo: $("#memo").val(),
+        category: $("#category").val(),
+        deadline: $("#deadline").val()
+    };
+    undoStack.push(currentState);
     redoStack = []; // 新しい操作があったらRedoスタックをクリア
 }
 
-function getAllMemos() {
-    let memos = {};
-    for(let i = 0; i < localStorage.length; i++){
-        const key = localStorage.key(i);
-        memos[key] = JSON.parse(localStorage.getItem(key));
-    }
-    return memos;
-}
-
 function restoreState(state) {
-    localStorage.clear();
-    const memos = JSON.parse(state);
-    for (let key in memos) {
-        localStorage.setItem(key, JSON.stringify(memos[key]));
-    }
-    displayAllMemos();
+    $("#key").val(state.title);
+    $("#memo").val(state.memo);
+    $("#category").val(state.category);
+    $("#deadline").val(state.deadline);
 }
 
 // メモを保存する関数
-function saveMemo(key, value, category) {
-    saveState(); // 現在の状態を保存
-    const memo = { value: value, category: category };
+function saveMemo(key, value, category, deadline) {
+    const memo = { 
+        value: value, 
+        category: category,
+        deadline: deadline,
+        createdAt: new Date().toLocaleString() // 作成日時を追加
+    };
     localStorage.setItem(key, JSON.stringify(memo));
-    displayMemo(key, value, category);
+    displayMemo(key, value, category, deadline, memo.createdAt);
 }
 
 // メモを表示する関数
-function displayMemo(key, value, category) {
+function displayMemo(key, value, category, deadline, createdAt) {
     const formattedValue = value.replace(/\n/g, '<br>'); // 改行を<br>に変換
-    const html = '<tr><td>' + key + '</td><td>' + formattedValue + '</td><td>' + category + '</td>' +
+    const today = new Date();
+    const deadlineDate = new Date(deadline);
+    
+    let rowClass = '';
+    if (isSameDay(today, deadlineDate)) {
+        rowClass = 'deadline-today';
+    }
+
+    const html = '<tr class="' + rowClass + '"><td>' + createdAt + '</td><td>' + category + '</td><td>' + deadline + '</td><td>' + key + '</td><td>' + formattedValue + '</td>' +
                  '<td><button class="edit">編集</button> <button class="delete">削除</button></td></tr>';
     $("#list").append(html);
 }
@@ -86,7 +105,7 @@ function displayAllMemos() {
     for(let i = 0; i < localStorage.length; i++){
         const key = localStorage.key(i);
         const memo = JSON.parse(localStorage.getItem(key));
-        displayMemo(key, memo.value, memo.category);
+        displayMemo(key, memo.value, memo.category, memo.deadline, memo.createdAt);
     }
 }
 
@@ -95,23 +114,31 @@ $("#save").on("click", function(){
     const key = $("#key").val();
     const value = $("#memo").val();
     const category = $("#category").val();
-    saveMemo(key, value, category);
+    const deadline = $("#deadline").val();
+    saveMemo(key, value, category, deadline);
     $("#key").val("");
     $("#memo").val("");
     $("#category").val("");
+    $("#deadline").val("");
+    undoStack = [];
+    redoStack = [];
 });
 
 // 2.Clear クリックイベント
 $("#clear").on("click", function(){
-    saveState(); // 現在の状態を保存
     localStorage.clear();
     displayAllMemos();
+    $("#key").val("");
+    $("#memo").val("");
+    $("#category").val("");
+    $("#deadline").val("");
+    undoStack = [];
+    redoStack = [];
 });
 
 // 3.削除ボタンクリックイベント
 $(document).on("click", ".delete", function(){
-    saveState(); // 現在の状態を保存
-    const key = $(this).closest("tr").find("td:first").text();
+    const key = $(this).closest("tr").find("td:eq(3)").text(); // タイトルの列を参照
     localStorage.removeItem(key);
     $(this).closest("tr").remove();
 });
@@ -119,16 +146,21 @@ $(document).on("click", ".delete", function(){
 // 4.編集ボタンクリックイベント
 $(document).on("click", ".edit", function(){
     const $row = $(this).closest("tr");
-    const key = $row.find("td:eq(0)").text();
-    const value = $row.find("td:eq(1)").html().replace(/<br>/g, '\n'); // <br>を改行に戻す
-    const category = $row.find("td:eq(2)").text();
+    const key = $row.find("td:eq(3)").text(); // タイトルの列を参照
+    const value = $row.find("td:eq(4)").html().replace(/<br>/g, '\n'); // <br>を改行に戻す
+    const category = $row.find("td:eq(1)").text(); // カテゴリの列を参照
+    const deadline = $row.find("td:eq(2)").text(); // 締め切りの列を参照
 
     $("#key").val(key);
     $("#memo").val(value);
     $("#category").val(category);
+    $("#deadline").val(deadline);
+
+    undoStack = [];
+    redoStack = [];
+    saveState();
 
     // 古いデータを削除
-    saveState(); // 現在の状態を保存
     localStorage.removeItem(key);
     $row.remove();
 });
@@ -143,31 +175,67 @@ $("#searchBtn").on("click", function(){
 });
 
 // 6.Undo クリックイベント
-$("#undo").on("click", function(){
+$("#undo").on("click", performUndo);
+
+// 7.Redo クリックイベント
+$("#redo").on("click", performRedo);
+
+// Undo機能を実行する関数
+function performUndo() {
     if (undoStack.length > 0) {
+        const currentState = {
+            title: $("#key").val(),
+            memo: $("#memo").val(),
+            category: $("#category").val(),
+            deadline: $("#deadline").val()
+        };
+        redoStack.push(currentState);
         const previousState = undoStack.pop();
-        redoStack.push(JSON.stringify(getAllMemos())); // 現在の状態をRedoスタックに保存
         restoreState(previousState);
     } else {
         alert("これ以上戻れません。");
     }
-});
+}
 
-// 7.Redo クリックイベント
-$("#redo").on("click", function(){
+// Redo機能を実行する関数
+function performRedo() {
     if (redoStack.length > 0) {
+        const currentState = {
+            title: $("#key").val(),
+            memo: $("#memo").val(),
+            category: $("#category").val(),
+            deadline: $("#deadline").val()
+        };
+        undoStack.push(currentState);
         const nextState = redoStack.pop();
-        undoStack.push(JSON.stringify(getAllMemos())); // 現在の状態をUndoスタックに保存
         restoreState(nextState);
     } else {
         alert("これ以上進めません。");
     }
+}
+
+// キーボードイベントのリスナーを追加
+$(document).keydown(function(e) {
+    // Ctrl+Z (Windows) または Command+Z (Mac) が押された場合
+    if ((e.ctrlKey || e.metaKey) && e.keyCode == 90) {
+        e.preventDefault(); // デフォルトの動作を防ぐ
+        performUndo();
+    }
+    // Ctrl+Y (Windows) または Command+Shift+Z (Mac) が押された場合
+    else if ((e.ctrlKey || e.metaKey) && (e.keyCode == 89 || (e.shiftKey && e.keyCode == 90))) {
+        e.preventDefault(); // デフォルトの動作を防ぐ
+        performRedo();
+    }
+});
+
+// 入力フィールドの変更を監視
+$("#key, #memo, #category, #deadline").on("input", function() {
+    saveState();
 });
 
 // ページ読み込み時：保存データ取得表示
-saveState(); // 初期状態を保存
 displayAllMemos();
-
+saveState(); // 初期状態を保存
 </script>
 <footer><small>G's</small></footer>
 </body>
